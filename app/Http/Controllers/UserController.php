@@ -7,6 +7,7 @@ use App\Models\UserDetail;
 use Illuminate\Container\Attributes\DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Redis;
 
 class UserController extends Controller
 {
@@ -15,11 +16,16 @@ class UserController extends Controller
      */
     public function index()
 {
+    $userList=Redis::get("userList");
+    $users = json_decode($userList);
+    if($users==""){
     $users = User::leftJoin('user_details', 'users.id', '=', 'user_details.user_id')
         ->select('users.id', 'users.name', 'users.email', 'user_details.desc', 'user_details.image')
         ->get()
         ->groupBy('id'); // Group by user ID to properly structure the data
 
+        Redis::set("userList",$users);
+    }
         // dd($users);
 
     return view('users.index', compact('users'));
