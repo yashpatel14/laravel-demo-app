@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Models\UserDetail;
-use Illuminate\Container\Attributes\DB;
+use DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Redis;
@@ -89,18 +89,62 @@ class UserController extends Controller
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(string $id)
-    {
-        //
+    public function edit($id)
+{
+    // Get user basic info
+    $user = DB::table('users')->where('id', $id)->first();
+
+    if (!$user) {
+        abort(404, 'User not found');
     }
+
+    // Get user details
+    $details = DB::table('user_details')
+                ->where('user_id', $id)
+                ->get();
+
+    return view('users.edit', compact('user', 'details'));
+}
+
 
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, string $id)
-    {
-        //
+    public function update(Request $request, $id)
+{
+    $user = User::findOrFail($id);
+
+    $validatedData = $request->validate([
+        'name' => 'required',
+        'email' => "required|email|unique:users,email,{$id}",
+        'password' => 'nullable|min:6',
+        'details.*.desc' => 'required',
+        'details.*.image' => 'nullable|image|max:2048',
+    ]);
+
+    $user->name = $request->name;
+    $user->email = $request->email;
+    if ($request->password) {
+        $user->password = Hash::make($request->password);
     }
+    $user->save();
+
+    // Delete existing details and re-add (simplest approach)
+    $user->details()->delete();
+
+    if ($request->details) {
+        foreach ($request->details as $detail) {
+            $imagePath = isset($detail['image']) ? $detail['image']->store('images', 'public') : null;
+            $user->details()->create([
+                'desc' => $detail['desc'],
+                'image' => $imagePath,
+            ]);
+        }
+    }
+
+    return redirect('/users')->with('success', 'User updated successfully.');
+}
+
 
     /**
      * Remove the specified resource from storage.
